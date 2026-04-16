@@ -65,32 +65,41 @@ class ConfidenceRouter:
         Returns:
             RoutingDecision with routing action and metadata
         """
-        # TODO 12: Implement routing logic
-        #
-        # 1. Check if action_type is in HIGH_RISK_ACTIONS
-        #    -> If yes: always escalate (action="escalate", priority="high",
-        #       requires_human=True, reason="High-risk action: {action_type}")
-        #
-        # 2. Check confidence thresholds:
-        #    - confidence >= 0.9:
-        #      action="auto_send", priority="low",
-        #      requires_human=False, reason="High confidence"
-        #
-        #    - 0.7 <= confidence < 0.9:
-        #      action="queue_review", priority="normal",
-        #      requires_human=True, reason="Medium confidence — needs review"
-        #
-        #    - confidence < 0.7:
-        #      action="escalate", priority="high",
-        #      requires_human=True, reason="Low confidence — escalating"
+        # 1. High-risk actions ALWAYS escalate regardless of confidence
+        if action_type in HIGH_RISK_ACTIONS:
+            return RoutingDecision(
+                action="escalate",
+                confidence=confidence,
+                reason=f"High-risk action: {action_type}",
+                priority="high",
+                requires_human=True,
+            )
 
-        return RoutingDecision(
-            action="auto_send",
-            confidence=confidence,
-            reason="TODO: implement routing logic",
-            priority="low",
-            requires_human=False,
-        )  # TODO: Replace with implementation
+        # 2. Confidence-based routing
+        if confidence >= self.HIGH_THRESHOLD:
+            return RoutingDecision(
+                action="auto_send",
+                confidence=confidence,
+                reason="High confidence",
+                priority="low",
+                requires_human=False,
+            )
+        elif confidence >= self.MEDIUM_THRESHOLD:
+            return RoutingDecision(
+                action="queue_review",
+                confidence=confidence,
+                reason="Medium confidence — needs review",
+                priority="normal",
+                requires_human=True,
+            )
+        else:
+            return RoutingDecision(
+                action="escalate",
+                confidence=confidence,
+                reason="Low confidence — escalating",
+                priority="high",
+                requires_human=True,
+            )
 
 
 # ============================================================
@@ -109,27 +118,52 @@ class ConfidenceRouter:
 hitl_decision_points = [
     {
         "id": 1,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
+        "name": "Large Transaction Approval",
+        "trigger": "Customer requests a money transfer exceeding 50,000,000 VND "
+                   "or any international wire transfer.",
+        "hitl_model": "human-in-the-loop",
+        "context_needed": "Transaction amount, sender/receiver account details, "
+                          "customer's recent transaction history, risk score from "
+                          "fraud detection system, and reason for transfer.",
+        "example": "A customer asks to wire 200,000,000 VND to a new beneficiary "
+                   "they have never transacted with before. The AI flags this as "
+                   "high-risk and queues it for a human agent who reviews the "
+                   "customer's identity verification and calls the customer to "
+                   "confirm before executing.",
     },
     {
         "id": 2,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
+        "name": "Disputed / Ambiguous Complaint Resolution",
+        "trigger": "Customer files a complaint about an unauthorized transaction "
+                   "or disputes a charge, and the AI's confidence in the resolution "
+                   "is below 0.8 (e.g., partial evidence, conflicting records).",
+        "hitl_model": "human-as-tiebreaker",
+        "context_needed": "Original transaction details, customer's dispute claim, "
+                          "merchant response (if available), AI's preliminary verdict "
+                          "with confidence score, and similar past dispute outcomes.",
+        "example": "A customer disputes a 5,000,000 VND charge at an online store, "
+                   "claiming they never made the purchase. The AI finds the "
+                   "transaction was authenticated with OTP but the IP address is "
+                   "from an unusual location. Confidence = 0.55 (uncertain). "
+                   "A human dispute specialist reviews both sides and decides.",
     },
     {
         "id": 3,
-        "name": "TODO: Name this decision point",
-        "trigger": "TODO: When does this trigger?",
-        "hitl_model": "TODO: human-in-the-loop / human-on-the-loop / human-as-tiebreaker",
-        "context_needed": "TODO: What does the reviewer need to see?",
-        "example": "TODO: Give a concrete example scenario",
+        "name": "Sensitive Account Modification",
+        "trigger": "Customer requests changes to critical account settings: "
+                   "password reset, phone number update, account closure, or "
+                   "adding a new authorized user.",
+        "hitl_model": "human-on-the-loop",
+        "context_needed": "Customer identity verification status, type of change "
+                          "requested, account age and activity pattern, recent "
+                          "login locations, and any recent security alerts.",
+        "example": "A customer calls to change the registered phone number on "
+                   "their account. The AI processes the request and generates a "
+                   "change order, but a human supervisor is notified in real-time "
+                   "and has 15 minutes to review and veto the change before it "
+                   "takes effect. The supervisor sees the customer's last login "
+                   "was from a new device and decides to hold the change pending "
+                   "additional verification.",
     },
 ]
 
